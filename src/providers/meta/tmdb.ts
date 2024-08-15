@@ -399,12 +399,12 @@ class TMDB extends MovieParser {
     });
 
     // if extraData contains a year, filter out the results that don't match the year
-    if (extraData && extraData.year && extraData.type === TvType.MOVIE) {
-      findMedia.results = findMedia.results.filter(result => {
-        return result.releaseDate?.split('-')[0] === extraData.year;
-      });
-    }
-
+     if (extraData && extraData.year) {
+    findMedia.results = findMedia.results.filter(result => {
+      const releaseYear = result.releaseDate?.split('-')[0];
+      return releaseYear === extraData.year.toString();
+    });
+  }
     // console.log({ test1: findMedia.results });
 
     // Check if the result contains the total number of seasons and compare it to the extraData.
