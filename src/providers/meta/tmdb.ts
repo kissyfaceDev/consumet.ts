@@ -186,13 +186,11 @@ class TMDB extends MovieParser {
 
       //get provider id from title and year (if available) to get the correct provider id for the movie/tv series (e.g. flixhq)
     const releaseYear = new Date(data?.release_date || data?.first_air_date).getFullYear();
-    const providerId = await this.findIdFromTitle(data?.title || data?.name, {
-    type: type === 'movie' ? TvType.MOVIE : TvType.TVSERIES,
-    year: releaseYear, // Pass the year down
+    const providerId = await this.findIdFromTitle(`${data?.title || data?.name} (${releaseYear})`, {
+     type: type === 'movie' ? TvType.MOVIE : TvType.TVSERIES,
     totalSeasons: data?.number_of_seasons,
     totalEpisodes: data?.number_of_episodes,
-});
-
+   });
 
       //fetch media info from provider
       const InfoFromProvider = await this.provider.fetchMediaInfo(providerId as string);
