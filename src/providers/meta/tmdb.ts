@@ -185,11 +185,12 @@ class TMDB extends MovieParser {
       const { data } = await this.client.get(infoUrl);
 
       //get provider id from title and year (if available) to get the correct provider id for the movie/tv series (e.g. flixhq)
-    const releaseYear = new Date(data?.release_date || data?.first_air_date).getFullYear();
-    const providerId = await this.findIdFromTitle(`${data?.title || data?.name} (${releaseYear})`, {
+    const releaseYearz = new Date(data?.release_date || data?.first_air_date).getFullYear();
+    const providerId = await this.findIdFromTitle(`${data?.title || data?.name} (${releaseYearz})`, {
      type: type === 'movie' ? TvType.MOVIE : TvType.TVSERIES,
-    totalSeasons: data?.number_of_seasons,
-    totalEpisodes: data?.number_of_episodes,
+     year : releaseYearz, 
+     totalSeasons: data?.number_of_seasons,
+     totalEpisodes: data?.number_of_episodes,
    });
 
       //fetch media info from provider
@@ -220,7 +221,7 @@ class TMDB extends MovieParser {
 
       info.type = type === 'movie' ? TvType.MOVIE : TvType.TVSERIES;
       info.rating = data?.vote_average || 0;
-      info.releaseDate = data?.release_date || data?.first_air_date;
+      info.releaseDate = new Date(data?.release_date || data?.first_air_date).getFullYear();
       info.description = data?.overview;
       info.genres = data?.genres.map((genre: { name: string }) => genre.name);
       info.duration = data?.runtime || data?.episode_run_time[0];
@@ -352,75 +353,57 @@ class TMDB extends MovieParser {
    * @param extraData
    * @returns id of the media
    */
-  private findIdFromTitle = async (
-    title: string,
-    extraData: {
-      type: TvType;
-      year?: number;
-      totalSeasons?: number;
-      totalEpisodes?: number;
-      [key: string]: any;
-    }
-  ): Promise<string | undefined> => {
-    //clean title
-    title = title.replace(/[^a-zA-Z0-9 ]/g, '').toLowerCase();
+ private findIdFromTitle = async (
+  title: string,
+  extraData: {
+    type: TvType;
+    year?: number;
+    totalSeasons?: number;
+    totalEpisodes?: number;
+    [key: string]: any;
+  }
+): Promise<string | undefined> => {
+  // Clean the title
+  title = title.replace(/[^a-zA-Z0-9 ]/g, '').toLowerCase();
 
-    const findMedia = (await this.provider.search(title)) as ISearch<IAnimeResult>;
-    if (findMedia.results.length === 0) return '';
+  const findMedia = (await this.provider.search(title)) as ISearch<IAnimeResult>;
+  if (findMedia.results.length === 0) return '';
 
-    // console.log(findMedia.results);
-    // console.log(extraData);
+  // Sort the results by similarity to the target title
+  findMedia.results.sort((a, b) => {
+    const firstTitle = (a?.title as string)?.toLowerCase() || '';
+    const secondTitle = (b?.title as string)?.toLowerCase() || '';
+    const firstRating = compareTwoStrings(title, firstTitle);
+    const secondRating = compareTwoStrings(title, secondTitle);
 
-    // Sort the retrieved info for more accurate results.
-    findMedia.results.sort((a, b) => {
-      const targetTitle = title;
+    // Sort in descending order based on the similarity rating
+    return secondRating - firstRating;
+  });
 
-      let firstTitle: string;
-      let secondTitle: string;
+  // Filter results by type (movie or TV series)
+  findMedia.results = findMedia.results.filter(result => 
+    extraData.type === TvType.MOVIE ? result.type === TvType.MOVIE : result.type === TvType.TVSERIES
+  );
 
-      if (typeof a.title == 'string') firstTitle = a?.title as string;
-      else firstTitle = (a?.title as string) ?? '';
-
-      if (typeof b.title == 'string') secondTitle = b.title as string;
-      else secondTitle = (b?.title as string) ?? '';
-
-      const firstRating = compareTwoStrings(targetTitle, firstTitle.toLowerCase());
-      const secondRating = compareTwoStrings(targetTitle, secondTitle.toLowerCase());
-
-      // Sort in descending order
-      return secondRating - firstRating;
-    });
-
-    //remove results that dont match the type
-    findMedia.results = findMedia.results.filter(result => {
-      if (extraData.type === TvType.MOVIE) return (result.type as string) === TvType.MOVIE;
-      else if (extraData.type === TvType.TVSERIES) return (result.type as string) === TvType.TVSERIES;
-      else return result;
-    });
-
-    // if extraData contains a year, filter out the results that don't match the year
-     if (extraData && extraData.year) {
+  // Filter results by release year if provided
+  if (extraData.year) {
     findMedia.results = findMedia.results.filter(result => {
       const releaseYear = result.releaseDate?.split('-')[0];
       return releaseYear === extraData.year.toString();
     });
   }
-    // console.log({ test1: findMedia.results });
 
-    // Check if the result contains the total number of seasons and compare it to the extraData.
-    // Allow for a range of ±2 seasons and ensure that the seasons value is a number.
-    if (extraData && extraData.totalSeasons && extraData.type === TvType.TVSERIES) {
-      findMedia.results = findMedia.results.filter(result => {
-        const totalSeasons = (result.seasons as number) || 0;
-        const extraDataSeasons = (extraData.totalSeasons as number) || 0;
-        return totalSeasons >= extraDataSeasons - 2 && totalSeasons <= extraDataSeasons + 2;
-      });
-    }
+  // Filter results by total number of seasons if provided (allowing a range of ±2)
+  if (extraData.totalSeasons && extraData.type === TvType.TVSERIES) {
+    findMedia.results = findMedia.results.filter(result => {
+      const totalSeasons = result.seasons || 0;
+      return totalSeasons >= extraData.totalSeasons - 2 && totalSeasons <= extraData.totalSeasons + 2;
+    });
+  }
 
-    // console.log(findMedia.results);
-
-    return findMedia?.results[0]?.id || undefined;
-  };
+  // Return the first matching result's ID or undefined if no match is found
+  return findMedia?.results[0]?.id || undefined;
+};
 
   /**
    * @param id media id (anime or movie/tv)
