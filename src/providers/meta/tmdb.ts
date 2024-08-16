@@ -221,7 +221,7 @@ class TMDB extends MovieParser {
 
       info.type = type === 'movie' ? TvType.MOVIE : TvType.TVSERIES;
       info.rating = data?.vote_average || 0;
-      info.releaseDate = new Date(data?.release_date || data?.first_air_date).getFullYear();
+      info.releaseDete = new Date(data?.release_date || data?.first_air_date).getFullYear();
       info.description = data?.overview;
       info.genres = data?.genres.map((genre: { name: string }) => genre.name);
       info.duration = data?.runtime || data?.episode_run_time[0];
